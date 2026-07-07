@@ -1,0 +1,11 @@
+customer_id,age,location,purchase_amount,discount_code
+1,34,Mumbai,540.50,SAVE10
+2,29,Delhi,,SAVE10
+3,45,Bangalore,910.75,
+4,31,Mumbai,,NEWUSER
+5,52,Chennai,1200.00,
+6,28,Delhi,260.10,SAVE10
+7,39,Bangalore,650.00,
+8,41,Mumbai,780.30,NEWUSER
+9,26,Chennai,,
+10,33,Delhi,510.60,SAVE10

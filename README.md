@@ -1,0 +1,176 @@
+# DataContract Lab
+
+DataContract Lab is a data quality and schema-drift monitoring tool for analysts. Upload two versions of a dataset — a "baseline" and a "new" one — and it tells you exactly what changed between them: columns added, removed, or renamed; data types that shifted; missing values that crept in; categories whose most common value changed; and numeric columns whose overall distribution shifted, backed by an actual statistical test (not just a changed average).
+
+**In plain words:** imagine yesterday's export had columns `customer_id, age, city, purchase_amount`, and today's suddenly has `customer_id, age, location, purchase_amount, discount_code` — with `location` holding the exact same values `city` used to. DataContract Lab catches that `city` was silently renamed to `location`, flags the new `discount_code` column, and checks whether `purchase_amount`'s missingness or overall shape changed too — then rolls all of it into a single 0-100 quality score and a plain-English summary.
+
+![Streamlit](https://img.shields.io/badge/Streamlit-App-ff4b4b)
+![Python](https://img.shields.io/badge/Python-3.14-blue)
+![MySQL](https://img.shields.io/badge/MySQL-Persistence-4479a1)
+![Ollama](https://img.shields.io/badge/Ollama-Optional%20Local%20LLM-222)
+
+## Contents
+
+- [Screenshots](#screenshots)
+- [Why This Exists](#why-this-exists)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Local Setup](#local-setup)
+- [User Manual](#user-manual)
+- [Sample Data](#sample-data)
+- [Known Limitations](#known-limitations)
+- [Resume Bullets](#resume-bullets)
+- [Status](#status)
+
+## Screenshots
+
+All screenshots below are captured directly from the running app, not illustrations.
+
+| Upload & preview | Column profiles |
+| --- | --- |
+| ![Upload boxes with both files loaded, plus side-by-side baseline/new preview tables](docs/screenshots/01-landing.png) | ![Column profile tables for baseline and new files — type, null %, unique count, stats](docs/screenshots/02-profiles.png) |
+
+| Schema comparison & drift detection | Missing-value drift chart |
+| --- | --- |
+| ![Schema comparison showing a possible rename, added/removed columns, and missing-value drift table](docs/screenshots/03-diagnostics.png) | ![Bar chart comparing missing-value % by column between baseline and new file](docs/screenshots/04-missing-chart.png) |
+
+| Numeric distribution drift (KS test + overlay histogram) | Data quality score & summary |
+| --- | --- |
+| ![Kolmogorov-Smirnov test result and overlaid histogram showing the baseline vs. new distribution of purchase_amount](docs/screenshots/05-distribution-chart.png) | ![Quality score section and plain-English summary](docs/screenshots/06-quality-score.png) |
+
+**Scan history** — every comparison saved to MySQL, pulled fresh from the database on every page load:
+
+![Scan history table with two saved rows, real timestamps, proving persistence survives across runs](docs/screenshots/07-scan-history.png)
+
+**The exported PDF report** — letterhead on every page, colored quality-score box, lab-panel-style diagnostic tables, and numbered suggestions:
+
+| Page 1 — Overall assessment | Page 2 — Diagnostic panels | Page 3 — Suggestions |
+| --- | --- | --- |
+| ![PDF report page 1: letterhead, quality score box, overall assessment](docs/screenshots/08-pdf-report-page1.png) | ![PDF report page 2: schema, missing-value, categorical, and numeric distribution panels styled like lab test tables](docs/screenshots/09-pdf-report-page2.png) | ![PDF report page 3: numbered suggestions for each issue found](docs/screenshots/10-pdf-report-page3.png) |
+
+## Why This Exists
+
+Datasets change silently all the time — a column gets renamed by an upstream team, a data pipeline starts dropping values, a business change shifts the numbers you're used to seeing. Most of the time nobody notices until a downstream report or model breaks. DataContract Lab is a fast, visual way to diff two versions of a dataset and catch that kind of drift before it causes a real problem.
+
+## Features
+
+- **Multi-format upload** — CSV, Excel (`.xlsx`), and JSON, and you can even mix formats between the baseline and new file
+- **Column profiling** — type, % missing, unique values, and stats (min/max/mean/median/std or top categories) for every column in each file
+- **Schema comparison** — added columns, removed columns, data type changes, and a heuristic that detects likely *renames* (a removed column and an added column that share the same actual values)
+- **Missing-value drift** — flags columns where the % of missing values jumped significantly
+- **Categorical drift** — flags columns where the most common value changed
+- **Numeric distribution drift** — a real Kolmogorov–Smirnov statistical test on shared numeric columns, not just a compared average, with an overlaid histogram to visualize the shift
+- **0-100 data quality score** — a single number combining every issue found, weighted by severity
+- **Plain-English summary** — a rules-based narrative paragraph synthesizing every finding
+- **Optional local LLM explanation** — rewrites the summary in friendlier language via a locally-running Ollama model; fails gracefully with a clear message if Ollama isn't running, never crashes the app
+- **Report export** — a full diagnostic **PDF** (letterhead on every page, colored quality-score box, lab-panel-style tables, numbered suggestions) or a lightweight **Markdown** file
+- **Scan history** — every comparison is saved to MySQL and displayed in a "Scan History" table that persists across app restarts
+
+## Tech Stack
+
+| Layer | Tech |
+| --- | --- |
+| App / UI | Streamlit |
+| Data processing | Pandas, NumPy |
+| Statistics | scipy (Kolmogorov–Smirnov test) |
+| Visualization | Plotly |
+| Database | MySQL, via SQLAlchemy + PyMySQL |
+| PDF generation | ReportLab |
+| Optional local LLM | Ollama (`llama3.2`) |
+| Config | python-dotenv |
+
+## Architecture
+
+```mermaid
+flowchart TD
+    A[User uploads baseline + new file] --> B["load_dataframe()<br/>CSV / Excel / JSON"]
+    B --> C["profile_dataframe()<br/>run on both files"]
+    C --> D["compare_schemas()<br/>added / removed / renamed / dtype"]
+    C --> E["detect_missing_value_drift()<br/>detect_categorical_drift()"]
+    C --> F["detect_numeric_distribution_drift()<br/>Kolmogorov–Smirnov test"]
+    D --> G["compute_quality_score()"]
+    E --> G
+    F --> G
+    G --> H["generate_summary()<br/>plain-English narrative"]
+    H --> I[(MySQL: scans table)]
+    H --> J["Ollama — optional local LLM"]
+    H --> K["PDF / Markdown report export"]
+```
+
+## Project Structure
+
+```text
+DataContract_Lab/
+├── app.py                 # the entire app: UI, profiling, drift detection, PDF/DB logic
+├── requirements.txt        # exact pinned dependency versions
+├── schema.sql              # reference copy of the MySQL schema (app creates it automatically)
+├── .streamlit/
+│   └── config.toml         # dark hacker-terminal theme (base=dark, green accent, monospace font)
+├── .env                    # your local MySQL credentials — not committed, see Local Setup
+├── sample_data/
+│   ├── baseline.csv / .xlsx / .json
+│   └── new.csv / .xlsx / .json     # deliberately drifted versions for testing
+└── venv/                   # local virtual environment — not committed
+```
+
+## Local Setup
+
+This app runs entirely on your machine — there's no hosted version, so you'll need Python and a local MySQL server.
+
+1. **Clone the repo and create a virtual environment:**
+   ```
+   git clone <your-repo-url>
+   cd DataContract_Lab
+   python -m venv venv
+   ```
+2. **Activate it** (Command Prompt: `venv\Scripts\activate` — PowerShell: `.\venv\Scripts\Activate.ps1`).
+3. **Install dependencies:**
+   ```
+   pip install -r requirements.txt
+   ```
+4. **Set up MySQL.** Make sure a MySQL server is running locally, then create a `.env` file in the project root:
+   ```
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_USER=root
+   DB_PASSWORD=your_mysql_password_here
+   DB_NAME=datacontract_lab
+   ```
+   The app creates the database and the `scans` table automatically on first run — you don't need to run `schema.sql` by hand (it's kept only as documentation of what gets created).
+5. **(Optional) Set up Ollama** if you want the "Explain with local LLM" button to work: install from [ollama.com/download](https://ollama.com/download), then `ollama pull llama3.2`. If you skip this, the app still works fully — that button just shows a message explaining Ollama isn't reachable instead of crashing.
+6. **Run the app:**
+   ```
+   streamlit run app.py
+   ```
+   It opens automatically at `http://localhost:8501`.
+
+## User Manual
+
+1. Upload a **baseline** file (the older/known-good version) and a **new** file (the one you want to check) — any mix of `.csv`, `.xlsx`, `.json`.
+2. Click **Run Comparison**.
+3. Review the column profiles, schema comparison, missing-value/categorical drift, and numeric distribution drift sections — each has a plain-language caption explaining what it checks.
+4. Check the **Data Quality Score** and the plain-English **Summary**.
+5. Optionally click **Explain with local LLM** for a friendlier AI-generated rewrite of the summary.
+6. Download a **PDF** or **Markdown** report, or scroll to **Scan History** to see every past comparison pulled from MySQL.
+
+## Sample Data
+
+`sample_data/` contains a baseline/new pair in all three supported formats, deliberately constructed with drift: `city` renamed to `location`, a new `discount_code` column, several `purchase_amount` values now missing, and the remaining amounts shifted roughly 4-5x higher — enough to trip every detector in the app for testing.
+
+## Known Limitations
+
+- **Local-only** — no hosted/public version exists; anyone using this needs Python and a local MySQL server (see [Local Setup](#local-setup)).
+- **Ollama explanation is local-only by nature** — it calls `http://localhost:11434` on whichever machine is running the app, so it only works for the person actually running it themselves.
+- If you remove an uploaded file from the picker *after* a comparison has already run successfully (without clicking Run Comparison again), the results panel keeps showing the stale prior results, and the PDF export button will error rather than silently doing the wrong thing.
+
+## Resume Bullets
+
+```text
+Built DataContract Lab, a Streamlit-based data quality platform that compares dataset versions across CSV/Excel/JSON, detects schema drift, missing-value and categorical drift, and statistically significant numeric distribution shifts (Kolmogorov–Smirnov test) using Pandas and scipy, with MySQL-backed scan history, PDF/Markdown report export, and an optional local-LLM explanation via Ollama.
+```
+
+## Status
+
+Phase 1, Project 2 of a 9-project portfolio plan. Core diagnostic engine, dashboard, MySQL persistence, PDF/Markdown export, and the optional Ollama explanation are complete and manually tested.
