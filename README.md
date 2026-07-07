@@ -165,12 +165,3 @@ This app runs entirely on your machine — there's no hosted version, so you'll 
 - **Ollama explanation is local-only by nature** — it calls `http://localhost:11434` on whichever machine is running the app, so it only works for the person actually running it themselves.
 - If you remove an uploaded file from the picker *after* a comparison has already run successfully (without clicking Run Comparison again), the results panel keeps showing the stale prior results, and the PDF export button will error rather than silently doing the wrong thing.
 
-## Resume Bullets
-
-```text
-Built DataContract Lab, a Streamlit-based data quality platform that compares dataset versions across CSV/Excel/JSON, detects schema drift, missing-value and categorical drift, and statistically significant numeric distribution shifts (Kolmogorov–Smirnov test) using Pandas and scipy, with MySQL-backed scan history, PDF/Markdown report export, and an optional local-LLM explanation via Ollama.
-```
-
-## Status
-
-Phase 1, Project 2 of a 9-project portfolio plan. Core diagnostic engine, dashboard, MySQL persistence, PDF/Markdown export, and the optional Ollama explanation are complete and manually tested.
