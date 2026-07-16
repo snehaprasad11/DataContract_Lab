@@ -4,9 +4,11 @@ DataContract Lab is a data quality and schema-drift monitoring tool for analysts
 
 **In plain words:** imagine yesterday's export had columns `customer_id, age, city, purchase_amount`, and today's suddenly has `customer_id, age, location, purchase_amount, discount_code` — with `location` holding the exact same values `city` used to. DataContract Lab catches that `city` was silently renamed to `location`, flags the new `discount_code` column, and checks whether `purchase_amount`'s missingness or overall shape changed too — then rolls all of it into a single 0-100 quality score and a plain-English summary.
 
-![Streamlit](https://img.shields.io/badge/Streamlit-App-ff4b4b)
+**Live app: [datacontractlab.streamlit.app](https://datacontractlab-zgnhknzmqryyt8spdyp3mj.streamlit.app/)** — no setup needed. Upload two CSVs (or use the files in [`sample_data/`](sample_data)) and run a comparison right in the browser.
+
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Streamlit%20Cloud-ff4b4b)](https://datacontractlab-zgnhknzmqryyt8spdyp3mj.streamlit.app/)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![MySQL](https://img.shields.io/badge/MySQL-Persistence-4479a1)
+![MySQL](https://img.shields.io/badge/MySQL-TiDB%20Cloud-4479a1)
 ![Ollama](https://img.shields.io/badge/Ollama-Optional%20Local%20LLM-222)
 [![CI](https://github.com/snehaprasad11/DataContract_Lab/actions/workflows/ci.yml/badge.svg)](https://github.com/snehaprasad11/DataContract_Lab/actions/workflows/ci.yml)
 
@@ -22,6 +24,7 @@ DataContract Lab is a data quality and schema-drift monitoring tool for analysts
 - [User Manual](#user-manual)
 - [Sample Data](#sample-data)
 - [Testing](#testing)
+- [Deployment](#deployment)
 - [Known Limitations](#known-limitations)
 
 ## Screenshots
@@ -118,7 +121,7 @@ DataContract_Lab/
 
 ## Local Setup
 
-This app runs entirely on your machine — there's no hosted version, so you'll need Python and a local MySQL server.
+There's a [live hosted version](https://datacontractlab-zgnhknzmqryyt8spdyp3mj.streamlit.app/) if you just want to try it. To run it yourself locally, you'll need Python and a local MySQL server — follow the steps below.
 
 1. **Clone the repo and create a virtual environment:**
    ```
@@ -172,8 +175,29 @@ The suite (24 cases) exercises schema comparison (adds/removes, dtype changes, t
 
 Every push and pull request runs the same suite in GitHub Actions (see the CI badge above and [`.github/workflows/ci.yml`](.github/workflows/ci.yml)), on a clean Python 3.12 environment installed from `requirements.txt`.
 
+## Deployment
+
+The live app runs on:
+
+- **[Streamlit Community Cloud](https://streamlit.io/cloud)** (free tier) — deploys straight from this GitHub repo, no server to manage.
+- **[TiDB Cloud Serverless](https://tidbcloud.com)** (free tier) for MySQL-compatible storage — it speaks the MySQL wire protocol, so the same `pymysql`/SQLAlchemy code runs unchanged versus local MySQL; the only difference is enabling TLS (`DB_SSL=true`), which TiDB Cloud requires on its public endpoint.
+
+The same code runs locally and in the cloud with no branching — configuration is read by `get_setting()`, which checks Streamlit's `st.secrets` first (how the cloud provides config) and falls back to local environment variables from `.env`. To deploy your own copy, point Streamlit Community Cloud at a fork and set these keys in the app's **Secrets** box:
+
+```toml
+DB_HOST = "gateway01.<region>.prod.aws.tidbcloud.com"
+DB_PORT = "4000"
+DB_USER = "<prefix>.root"
+DB_PASSWORD = "<your-password>"
+DB_NAME = "datacontract_lab"
+DB_SSL = "true"
+ENABLE_OLLAMA = "false"
+```
+
+`ENABLE_OLLAMA=false` hides the local-LLM button on the hosted app, since a remote visitor's browser can't reach an Ollama running on your machine (see the note below).
+
 ## Known Limitations
 
-- **Local-only** — no hosted/public version exists; anyone using this needs Python and a local MySQL server (see [Local Setup](#local-setup)).
-- **Ollama explanation is local-only by nature** — it calls `http://localhost:11434` on whichever machine is running the app, so it only works for the person actually running it themselves. Making it work for a remote visitor would require hosting an LLM (a paid API or a dedicated GPU server), which is out of scope for a free, local-first tool — so the button simply fails gracefully with a clear message when Ollama isn't reachable.
+- **Ollama explanation is local-only by nature** — it calls `http://localhost:11434` on whichever machine is running the app, so it only works when you run the app yourself locally; on the hosted deployment it is turned off via `ENABLE_OLLAMA=false`. Making it work for a remote visitor would require hosting an LLM (a paid API or a dedicated GPU server), which is out of scope for a free tool — so locally it also fails gracefully with a clear message when Ollama isn't reachable.
+- **Free-tier cold starts** — the hosted app sleeps after a period of inactivity (Streamlit Community Cloud) and takes a few seconds to wake on the first visit; the TiDB Serverless free tier likewise has generous but finite storage/request quotas.
 
