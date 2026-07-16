@@ -479,7 +479,20 @@ def load_scan_history(engine, limit=20):
 
 engine = get_engine()
 
-st.header("1. Upload your datasets")
+# Section headers are numbered dynamically (rather than hard-coded) so that hiding an
+# optional section — e.g. the Ollama panel when ENABLE_OLLAMA=false — doesn't leave a
+# visible gap like "8 ... 10". The counter resets on every rerun since the whole script
+# re-executes top to bottom.
+_section_n = 0
+
+
+def numbered(title):
+    global _section_n
+    _section_n += 1
+    return f"{_section_n}. {title}"
+
+
+st.header(numbered("Upload your datasets"))
 col1, col2 = st.columns(2)
 
 with col1:
@@ -538,14 +551,14 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
             st.subheader("New preview")
             st.table(new_df.head())
     if "baseline_profile" in st.session_state and "new_profile" in st.session_state:
-        st.header("2. Column profiles")
+        st.header(numbered("Column profiles"))
         st.caption("Think of this as each file's ID card: type, how much of it is missing in action, how many distinct values it holds, and its vital stats. No comparing yet — just getting acquainted.")
         st.subheader("Baseline profile")
         st.table(format_profile_for_display(st.session_state.baseline_profile))
         st.subheader("New profile")
         st.table(format_profile_for_display(st.session_state.new_profile))
 
-        st.header("3. Schema comparison")
+        st.header(numbered("Schema comparison"))
         st.caption("The lineup: which columns showed up new, which ones skipped town, which ones just changed their name to dodge recognition, and which ones swapped their entire identity (data type).")
         schema_diff = compare_schemas(st.session_state.baseline_profile, st.session_state.new_profile)
 
@@ -566,7 +579,7 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
         if not (schema_diff["added"] or schema_diff["removed"] or schema_diff["dtype_changes"]):
             st.success("No schema changes detected — column names and types match.")
 
-        st.header("4. Missing-value & categorical drift")
+        st.header(numbered("Missing-value & categorical drift"))
         st.caption("For columns that stuck around in both files: are they ghosting you more often now (missing values), or did their whole spread of answers shift, not just the most popular one?")
         missing_drift = detect_missing_value_drift(st.session_state.baseline_profile, st.session_state.new_profile)
         categorical_drift = detect_categorical_drift(st.session_state.baseline_df, st.session_state.new_df)
@@ -588,7 +601,7 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
             use_container_width=True,
         )
 
-        st.header("5. Numeric distribution drift")
+        st.header(numbered("Numeric distribution drift"))
         st.caption("Runs an actual statistics test (Kolmogorov–Smirnov — yes, that's really its name) on shared number columns, because averages can lie. This checks if the whole shape of the numbers moved, not just where they like to hang out on average.")
         numeric_drift = detect_numeric_distribution_drift(st.session_state.baseline_df, st.session_state.new_df)
 
@@ -603,7 +616,7 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
         else:
             st.success("No significant numeric distribution drift detected.")
 
-        st.header("6. Data quality score")
+        st.header(numbered("Data quality score"))
         st.caption("Every offense uncovered above — a column that vanished, one that snuck in wearing a disguise, missing data gone AWOL, numbers acting shifty — gets tallied into one report card out of 100. Lower score, dirtier data.")
         quality_score = compute_quality_score(schema_diff, missing_drift, categorical_drift, numeric_drift)
 
@@ -614,7 +627,7 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
         else:
             st.error(f"Quality score: {quality_score}/100 — significant drift detected, investigate before trusting this data.")
 
-        st.header("7. Summary")
+        st.header(numbered("Summary"))
         st.caption("Same verdict, translated from 'tables and red boxes' into full sentences — the case file written up in plain English, no detective badge required to read it.")
         summary_text = generate_summary(schema_diff, missing_drift, categorical_drift, numeric_drift, quality_score)
         st.write(summary_text)
@@ -623,7 +636,7 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
             save_scan(engine, baseline_file.name, new_file.name, quality_score, summary_text)
             st.session_state.scan_saved = True
 
-        st.header("8. Cleaning suggestions")
+        st.header(numbered("Cleaning suggestions"))
         st.caption("Concrete next steps for each issue found — what to double-check, who to ask, and what might break downstream if you don't. These also appear in the exported PDF report.")
         suggestions = build_suggestions(schema_diff, missing_drift, categorical_drift, numeric_drift)
         if suggestions:
@@ -636,7 +649,7 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
         # deployment it never will be, so set ENABLE_OLLAMA=false in the cloud secrets to hide it.
         ollama_enabled = str(get_setting("ENABLE_OLLAMA", "true")).strip().lower() in ("1", "true", "yes")
         if ollama_enabled:
-            st.header("9. AI explanation (optional)")
+            st.header(numbered("AI explanation (optional)"))
             st.caption("Ask a locally-running Ollama model to rewrite the summary above in even friendlier language. Nothing leaves your machine — if Ollama isn't running, this just politely says so instead of doing anything scary.")
             if st.button("Explain with local LLM"):
                 with st.spinner("Asking your local model..."):
@@ -646,7 +659,7 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
                 else:
                     st.warning(error)
 
-        st.header("10. Export report")
+        st.header(numbered("Export report"))
         st.caption("Get a full diagnostic report, lab-report style, with the DataContract Lab letterhead on every page — or a lighter plain Markdown version.")
         report_markdown = build_markdown_report(schema_diff, missing_drift, categorical_drift, numeric_drift, quality_score, summary_text)
         pdf_buffer = build_pdf_report(
