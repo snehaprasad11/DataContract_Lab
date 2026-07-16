@@ -162,7 +162,7 @@ There's a [live hosted version](https://datacontractlab-zgnhknzmqryyt8spdyp3mj.s
 
 ## Sample Data
 
-`sample_data/` contains a baseline/new pair in all three supported formats, deliberately constructed with drift: `city` renamed to `location`, a new `discount_code` column, several `purchase_amount` values now missing, and the remaining amounts shifted roughly 4-5x higher — enough to trip every detector in the app for testing.
+`sample_data/` contains a baseline/new pair in all three supported formats, deliberately constructed with drift: `city` renamed to `location`, a new `discount_code` column, several `purchase_amount` values now missing with the rest shifted roughly 4-5x higher, and a `membership` column whose mix flips from mostly `basic` to mostly `premium` — enough to trip every detector in the app, including the chi-square categorical drift test, for testing.
 
 ## Testing
 
