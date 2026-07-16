@@ -1,6 +1,7 @@
 import io
 import os
 from urllib.parse import quote_plus
+from zoneinfo import ZoneInfo
 
 import certifi
 import streamlit as st
@@ -414,10 +415,16 @@ def get_engine():
     db_password = get_setting("DB_PASSWORD", "")
     db_name = get_setting("DB_NAME", "datacontract_lab")
 
+    # Pin every connection to UTC so CURRENT_TIMESTAMP stores the same instant regardless of
+    # the host's timezone (TiDB Cloud defaults to UTC; a local MySQL server defaults to OS
+    # local time). Timestamps are then converted to APP_TIMEZONE only for display.
+    connect_args = {"init_command": "SET time_zone = '+00:00'"}
+
     # Hosted MySQL providers (e.g. TiDB Cloud) require TLS. Set DB_SSL=true to enable it;
     # the CA bundle from certifi covers their public certificate chains.
     use_ssl = str(get_setting("DB_SSL", "false")).strip().lower() in ("1", "true", "yes")
-    connect_args = {"ssl": {"ca": certifi.where()}} if use_ssl else {}
+    if use_ssl:
+        connect_args["ssl"] = {"ca": certifi.where()}
 
     # Auto-create the database for local setups. On hosted providers the database
     # already exists and the account may not be allowed to create one, so a failure
@@ -474,7 +481,24 @@ def load_scan_history(engine, limit=20):
             {"limit": limit},
         )
         rows = result.fetchall()
-    return pd.DataFrame(rows, columns=["baseline_filename", "new_filename", "quality_score", "created_at"])
+    df = pd.DataFrame(rows, columns=["baseline_filename", "new_filename", "quality_score", "created_at"])
+
+    # created_at comes back as a UTC instant (connections are pinned to UTC in get_engine).
+    # Convert it to the configured display timezone so the "paper trail" reads in local time.
+    if not df.empty:
+        tz_name = get_setting("APP_TIMEZONE", "UTC")
+        try:
+            display_tz = ZoneInfo(tz_name)
+        except Exception:
+            display_tz = ZoneInfo("UTC")
+            tz_name = "UTC"
+        df["created_at"] = (
+            pd.to_datetime(df["created_at"], utc=True)
+            .dt.tz_convert(display_tz)
+            .dt.strftime("%Y-%m-%d %H:%M:%S")
+        )
+        df = df.rename(columns={"created_at": f"created_at ({tz_name})"})
+    return df
 
 
 engine = get_engine()

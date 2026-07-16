@@ -193,9 +193,10 @@ DB_PASSWORD = "<your-password>"
 DB_NAME = "datacontract_lab"
 DB_SSL = "true"
 ENABLE_OLLAMA = "false"
+APP_TIMEZONE = "Asia/Kolkata"
 ```
 
-`ENABLE_OLLAMA=false` hides the local-LLM button on the hosted app, since a remote visitor's browser can't reach an Ollama running on your machine (see the note below).
+`ENABLE_OLLAMA=false` hides the local-LLM button on the hosted app, since a remote visitor's browser can't reach an Ollama running on your machine (see the note below). `APP_TIMEZONE` (any IANA name, default `UTC`) only affects how scan-history timestamps are *displayed* — they're always stored in UTC, so the history stays consistent whether a scan ran locally or on the cloud.
 
 ## Known Limitations
 
