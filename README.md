@@ -175,6 +175,5 @@ Every push and pull request runs the same suite in GitHub Actions (see the CI ba
 ## Known Limitations
 
 - **Local-only** — no hosted/public version exists; anyone using this needs Python and a local MySQL server (see [Local Setup](#local-setup)).
-- **Ollama explanation is local-only by nature** — it calls `http://localhost:11434` on whichever machine is running the app, so it only works for the person actually running it themselves.
-- If you remove an uploaded file from the picker *after* a comparison has already run successfully (without clicking Run Comparison again), the results panel keeps showing the stale prior results, and the PDF export button will error rather than silently doing the wrong thing.
+- **Ollama explanation is local-only by nature** — it calls `http://localhost:11434` on whichever machine is running the app, so it only works for the person actually running it themselves. Making it work for a remote visitor would require hosting an LLM (a paid API or a dedicated GPU server), which is out of scope for a free, local-first tool — so the button simply fails gracefully with a clear message when Ollama isn't reachable.
 

@@ -482,6 +482,11 @@ if baseline_file and new_file:
         progress.progress(100, text="Done!")
         progress.empty()
 else:
+    # If either file is removed from the picker, drop any results from a previous
+    # comparison so the panels below don't keep showing stale data (and so the PDF
+    # export doesn't crash trying to read a now-missing file's name).
+    for stale_key in ("baseline_df", "new_df", "baseline_profile", "new_profile", "scan_saved"):
+        st.session_state.pop(stale_key, None)
     st.info("Upload both a baseline and a new file to enable the comparison.")
 
 if "baseline_df" in st.session_state and "new_df" in st.session_state:
