@@ -122,16 +122,42 @@ def test_detect_missing_value_drift_ignores_small_changes():
 
 # --- detect_categorical_drift ---
 
-def test_detect_categorical_drift_flags_top_value_change(baseline_df, new_df):
-    baseline_profile = profile_dataframe(baseline_df)
-    new_profile = profile_dataframe(new_df)
-    drifted = detect_categorical_drift(baseline_profile, new_profile)
-    assert drifted == [{"column": "status", "baseline_top_value": "active", "new_top_value": "inactive"}]
+def test_detect_categorical_drift_flags_full_reversal():
+    baseline = pd.DataFrame({"status": ["active"] * 27 + ["inactive"] * 3})
+    new = pd.DataFrame({"status": ["inactive"] * 27 + ["active"] * 3})
+    drifted = detect_categorical_drift(baseline, new)
+    assert len(drifted) == 1
+    assert drifted[0]["column"] == "status"
+    assert drifted[0]["p_value"] < 0.05
 
 
-def test_detect_categorical_drift_no_flag_when_top_value_same(baseline_df):
-    profile = profile_dataframe(baseline_df)
-    assert detect_categorical_drift(profile, profile) == []
+def test_detect_categorical_drift_no_flag_when_distribution_unchanged(baseline_df):
+    assert detect_categorical_drift(baseline_df, baseline_df.copy()) == []
+
+
+def test_detect_categorical_drift_catches_shift_even_when_top_value_unchanged():
+    # baseline: 60/40 active/inactive. new: 90/10 active/inactive.
+    # "active" is the top value in BOTH — the old mode-only check would have missed this
+    # entirely, even though the underlying distribution shifted a lot. The chi-square test
+    # looks at the whole distribution, not just which category is most common.
+    baseline = pd.DataFrame({"status": ["active"] * 18 + ["inactive"] * 12})
+    new = pd.DataFrame({"status": ["active"] * 27 + ["inactive"] * 3})
+    drifted = detect_categorical_drift(baseline, new)
+    assert len(drifted) == 1
+    assert drifted[0]["baseline_top_value"] == drifted[0]["new_top_value"] == "active"
+    assert drifted[0]["p_value"] < 0.05
+
+
+def test_detect_categorical_drift_skips_small_samples():
+    baseline = pd.DataFrame({"status": ["active", "inactive"]})
+    new = pd.DataFrame({"status": ["inactive", "active"]})
+    assert detect_categorical_drift(baseline, new) == []
+
+
+def test_detect_categorical_drift_ignores_numeric_columns():
+    baseline = pd.DataFrame({"id": range(10)})
+    new = pd.DataFrame({"id": range(10, 20)})
+    assert detect_categorical_drift(baseline, new) == []
 
 
 # --- detect_numeric_distribution_drift ---

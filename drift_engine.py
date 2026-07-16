@@ -96,23 +96,39 @@ def detect_missing_value_drift(baseline_profile, new_profile, threshold=10):
     return drifted
 
 
-def detect_categorical_drift(baseline_profile, new_profile):
-    common = sorted(set(baseline_profile.index) & set(new_profile.index))
+def detect_categorical_drift(baseline_df, new_df, alpha=0.05, min_observations=5, max_categories=50):
+    common_cols = sorted(set(baseline_df.columns) & set(new_df.columns))
     drifted = []
-    for col in common:
-        old_top = baseline_profile.loc[col, "top_categories"]
-        new_top = new_profile.loc[col, "top_categories"]
-        if not old_top or not new_top:
+    for col in common_cols:
+        if pd.api.types.is_numeric_dtype(baseline_df[col]) or pd.api.types.is_numeric_dtype(new_df[col]):
             continue
 
-        old_top_value = max(old_top, key=old_top.get)
-        new_top_value = max(new_top, key=new_top.get)
+        baseline_counts = baseline_df[col].dropna().value_counts()
+        new_counts = new_df[col].dropna().value_counts()
+        categories = sorted(set(baseline_counts.index) | set(new_counts.index))
 
-        if old_top_value != new_top_value:
+        if len(categories) < 2 or len(categories) > max_categories:
+            continue
+        if baseline_counts.sum() < min_observations or new_counts.sum() < min_observations:
+            continue
+
+        observed = [
+            [baseline_counts.get(cat, 0) for cat in categories],
+            [new_counts.get(cat, 0) for cat in categories],
+        ]
+
+        try:
+            statistic, p_value, _, _ = stats.chi2_contingency(observed)
+        except ValueError:
+            continue
+
+        if p_value < alpha:
             drifted.append({
                 "column": col,
-                "baseline_top_value": old_top_value,
-                "new_top_value": new_top_value,
+                "chi2_statistic": round(statistic, 4),
+                "p_value": round(p_value, 4),
+                "baseline_top_value": baseline_counts.idxmax(),
+                "new_top_value": new_counts.idxmax(),
             })
     return drifted
 
@@ -176,11 +192,8 @@ def generate_summary(schema_diff, missing_drift, categorical_drift, numeric_drif
         sentences.append(f"Missing values increased notably in: {missing_text}.")
 
     if categorical_drift:
-        cat_text = ", ".join(
-            f"{d['column']} (most common value changed from '{d['baseline_top_value']}' to '{d['new_top_value']}')"
-            for d in categorical_drift
-        )
-        sentences.append(f"Categorical drift detected in: {cat_text}.")
+        cat_text = ", ".join(f"{d['column']} (p={d['p_value']})" for d in categorical_drift)
+        sentences.append(f"Categorical distribution shifted significantly in: {cat_text}.")
 
     if numeric_drift:
         num_text = ", ".join(f"{d['column']} (p={d['p_value']})" for d in numeric_drift)
@@ -220,7 +233,7 @@ def build_suggestions(schema_diff, missing_drift, categorical_drift, numeric_dri
         )
     if categorical_drift:
         cols = ", ".join(d["column"] for d in categorical_drift)
-        suggestions.append(f"The most common value changed in: {cols}. Confirm this reflects a real business change, not a labeling or encoding bug.")
+        suggestions.append(f"The distribution of values shifted significantly in: {cols}. Confirm this reflects a real business change, not a labeling or encoding bug.")
     if numeric_drift:
         cols = ", ".join(d["column"] for d in numeric_drift)
         suggestions.append(

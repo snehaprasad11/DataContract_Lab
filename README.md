@@ -1,6 +1,6 @@
 # DataContract Lab
 
-DataContract Lab is a data quality and schema-drift monitoring tool for analysts. Upload two versions of a dataset — a "baseline" and a "new" one — and it tells you exactly what changed between them: columns added, removed, or renamed; data types that shifted; missing values that crept in; categories whose most common value changed; and numeric columns whose overall distribution shifted, backed by an actual statistical test (not just a changed average).
+DataContract Lab is a data quality and schema-drift monitoring tool for analysts. Upload two versions of a dataset — a "baseline" and a "new" one — and it tells you exactly what changed between them: columns added, removed, or renamed; data types that shifted; missing values that crept in; and both categorical and numeric columns whose overall distribution shifted, each backed by an actual statistical test (chi-square and Kolmogorov–Smirnov respectively) instead of just a changed average or mode.
 
 **In plain words:** imagine yesterday's export had columns `customer_id, age, city, purchase_amount`, and today's suddenly has `customer_id, age, location, purchase_amount, discount_code` — with `location` holding the exact same values `city` used to. DataContract Lab catches that `city` was silently renamed to `location`, flags the new `discount_code` column, and checks whether `purchase_amount`'s missingness or overall shape changed too — then rolls all of it into a single 0-100 quality score and a plain-English summary.
 
@@ -60,7 +60,7 @@ Datasets change silently all the time — a column gets renamed by an upstream t
 - **Column profiling** — type, % missing, unique values, and stats (min/max/mean/median/std or top categories) for every column in each file
 - **Schema comparison** — added columns, removed columns, data type changes, and a heuristic that detects likely *renames* (a removed column and an added column that share the same actual values)
 - **Missing-value drift** — flags columns where the % of missing values jumped significantly
-- **Categorical drift** — flags columns where the most common value changed
+- **Categorical drift** — a real chi-square test on the full category distribution of shared non-numeric columns, so it catches shifts even when the most common value stays the same
 - **Numeric distribution drift** — a real Kolmogorov–Smirnov statistical test on shared numeric columns, not just a compared average, with an overlaid histogram to visualize the shift
 - **0-100 data quality score** — a single number combining every issue found, weighted by severity
 - **Plain-English summary** — a rules-based narrative paragraph synthesizing every finding

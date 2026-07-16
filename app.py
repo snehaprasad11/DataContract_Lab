@@ -179,7 +179,10 @@ def build_markdown_report(schema_diff, missing_drift, categorical_drift, numeric
     lines.append("## Categorical drift")
     if categorical_drift:
         for d in categorical_drift:
-            lines.append(f"- {d['column']}: most common value changed from '{d['baseline_top_value']}' to '{d['new_top_value']}'")
+            lines.append(
+                f"- {d['column']}: chi-square p-value={d['p_value']} "
+                f"(top value: '{d['baseline_top_value']}' → '{d['new_top_value']}')"
+            )
     else:
         lines.append("None detected.")
     lines.append("")
@@ -324,12 +327,12 @@ def build_pdf_report(schema_diff, missing_drift, categorical_drift, numeric_drif
 
     story.append(Paragraph("Categorical Drift Panel", section_style))
     if categorical_drift:
-        rows = [["Column", "Baseline top value", "New top value", "Flag"]]
+        rows = [["Column", "Baseline top value", "New top value", "p-value", "Flag"]]
         for d in categorical_drift:
-            rows.append([d["column"], str(d["baseline_top_value"]), str(d["new_top_value"]), "ABNORMAL"])
+            rows.append([d["column"], str(d["baseline_top_value"]), str(d["new_top_value"]), str(d["p_value"]), "ABNORMAL"])
         story.append(_styled_table(rows))
     else:
-        story.append(Paragraph("No categorical drift detected.", body_style))
+        story.append(Paragraph("No significant categorical drift detected.", body_style))
     story.append(Spacer(1, 12))
 
     story.append(Paragraph("Numeric Distribution Panel", section_style))
@@ -524,9 +527,9 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
             st.success("No schema changes detected — column names and types match.")
 
         st.header("4. Missing-value & categorical drift")
-        st.caption("For columns that stuck around in both files: are they ghosting you more often now (missing values), or did their favorite answer suddenly change?")
+        st.caption("For columns that stuck around in both files: are they ghosting you more often now (missing values), or did their whole spread of answers shift, not just the most popular one?")
         missing_drift = detect_missing_value_drift(st.session_state.baseline_profile, st.session_state.new_profile)
-        categorical_drift = detect_categorical_drift(st.session_state.baseline_profile, st.session_state.new_profile)
+        categorical_drift = detect_categorical_drift(st.session_state.baseline_df, st.session_state.new_df)
 
         if missing_drift:
             st.warning("Missing-value drift detected:")
@@ -535,10 +538,10 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
             st.success("No significant missing-value drift detected.")
 
         if categorical_drift:
-            st.warning("Categorical drift detected (most common value changed):")
+            st.warning("Statistically significant categorical drift detected (chi-square test, p < 0.05):")
             st.table(pd.DataFrame(categorical_drift).set_index("column"))
         else:
-            st.success("No categorical drift detected.")
+            st.success("No significant categorical drift detected.")
 
         st.plotly_chart(
             plot_null_pct_comparison(st.session_state.baseline_profile, st.session_state.new_profile),
