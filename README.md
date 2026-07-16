@@ -64,6 +64,7 @@ Datasets change silently all the time — a column gets renamed by an upstream t
 - **Numeric distribution drift** — a real Kolmogorov–Smirnov statistical test on shared numeric columns, not just a compared average, with an overlaid histogram to visualize the shift
 - **0-100 data quality score** — a single number combining every issue found, weighted by severity
 - **Plain-English summary** — a rules-based narrative paragraph synthesizing every finding
+- **Cleaning suggestions** — concrete, per-issue remediation steps shown live in the app and in the exported PDF (e.g. "confirm this rename is intentional before downstream consumers break")
 - **Optional local LLM explanation** — rewrites the summary in friendlier language via a locally-running Ollama model; fails gracefully with a clear message if Ollama isn't running, never crashes the app
 - **Report export** — a full diagnostic **PDF** (letterhead on every page, colored quality-score box, lab-panel-style tables, numbered suggestions) or a lightweight **Markdown** file
 - **Scan history** — every comparison is saved to MySQL and displayed in a "Scan History" table that persists across app restarts
@@ -164,4 +165,22 @@ This app runs entirely on your machine — there's no hosted version, so you'll 
 - **Local-only** — no hosted/public version exists; anyone using this needs Python and a local MySQL server (see [Local Setup](#local-setup)).
 - **Ollama explanation is local-only by nature** — it calls `http://localhost:11434` on whichever machine is running the app, so it only works for the person actually running it themselves.
 - If you remove an uploaded file from the picker *after* a comparison has already run successfully (without clicking Run Comparison again), the results panel keeps showing the stale prior results, and the PDF export button will error rather than silently doing the wrong thing.
+
+## Resume Bullets
+
+```text
+Built DataContract Lab, a Streamlit data-quality platform that diffs two dataset versions (CSV/Excel/JSON) to detect schema drift, missing-value drift, and statistically significant categorical and numeric distribution shifts using chi-square and Kolmogorov–Smirnov tests (scipy), rolled into a 0-100 quality score with plain-English cleaning suggestions.
+```
+
+```text
+Separated the drift-detection engine from the Streamlit UI into a standalone module and backed it with a 24-case pytest suite covering schema, missing-value, categorical, and numeric drift plus quality-score edge cases; the tests caught a real blind spot where the original categorical check only compared the most-common value and missed distribution shifts that the chi-square test now flags.
+```
+
+```text
+Added MySQL-backed scan history (SQLAlchemy + PyMySQL, credentials via environment variables), letterhead-styled PDF / Markdown report export (ReportLab), and an optional local-LLM explanation via Ollama — no paid APIs.
+```
+
+## Status
+
+Phase 1, Project 2 of a 9-project portfolio plan. The drift-detection engine, dashboard, MySQL persistence, PDF/Markdown export, and optional Ollama explanation are complete, with an automated pytest suite covering the analysis logic.
 
