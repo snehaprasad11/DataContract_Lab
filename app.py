@@ -1,6 +1,8 @@
 import io
 import os
+from urllib.parse import quote_plus
 
+import certifi
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -382,20 +384,53 @@ def generate_ollama_explanation(summary_text, model="llama3.2"):
         return None, f"Ollama request failed: {e}"
 
 
+def get_setting(key, default=None):
+    """Read config with a clear priority: Streamlit Cloud secrets (st.secrets) win,
+    then local environment variables (from .env), then the default. This lets the same
+    code run locally off a .env file and in the cloud off Streamlit's Secrets box."""
+    try:
+        if key in st.secrets:
+            return str(st.secrets[key])
+    except Exception:
+        # st.secrets raises if there is no secrets file at all (normal when running locally)
+        pass
+    return os.environ.get(key, default)
+
+
+def _db_url(db_user, db_password, db_host, db_port, db_name=""):
+    # URL-encode the credentials so passwords containing @ : / etc. (common with
+    # auto-generated cloud passwords) don't corrupt the connection string.
+    return (
+        f"mysql+pymysql://{quote_plus(db_user)}:{quote_plus(db_password)}"
+        f"@{db_host}:{db_port}/{db_name}"
+    )
+
+
 @st.cache_resource
 def get_engine():
-    db_host = os.environ.get("DB_HOST", "localhost")
-    db_port = os.environ.get("DB_PORT", "3306")
-    db_user = os.environ.get("DB_USER", "root")
-    db_password = os.environ.get("DB_PASSWORD", "")
-    db_name = os.environ.get("DB_NAME", "datacontract_lab")
+    db_host = get_setting("DB_HOST", "localhost")
+    db_port = get_setting("DB_PORT", "3306")
+    db_user = get_setting("DB_USER", "root")
+    db_password = get_setting("DB_PASSWORD", "")
+    db_name = get_setting("DB_NAME", "datacontract_lab")
 
-    server_engine = create_engine(f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/")
-    with server_engine.connect() as conn:
-        conn.execute(text(f"CREATE DATABASE IF NOT EXISTS {db_name}"))
-        conn.commit()
+    # Hosted MySQL providers (e.g. TiDB Cloud) require TLS. Set DB_SSL=true to enable it;
+    # the CA bundle from certifi covers their public certificate chains.
+    use_ssl = str(get_setting("DB_SSL", "false")).strip().lower() in ("1", "true", "yes")
+    connect_args = {"ssl": {"ca": certifi.where()}} if use_ssl else {}
 
-    engine = create_engine(f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}")
+    # Auto-create the database for local setups. On hosted providers the database
+    # already exists and the account may not be allowed to create one, so a failure
+    # here is non-fatal — we fall through to connecting to the existing database.
+    try:
+        server_engine = create_engine(_db_url(db_user, db_password, db_host, db_port), connect_args=connect_args)
+        with server_engine.connect() as conn:
+            conn.execute(text(f"CREATE DATABASE IF NOT EXISTS {db_name}"))
+            conn.commit()
+    except Exception:
+        pass
+
+    engine = create_engine(_db_url(db_user, db_password, db_host, db_port, db_name), connect_args=connect_args)
     with engine.connect() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS scans (
@@ -597,15 +632,19 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
         else:
             st.success("No action needed — this dataset looks consistent with the baseline.")
 
-        st.header("9. AI explanation (optional)")
-        st.caption("Ask a locally-running Ollama model to rewrite the summary above in even friendlier language. Nothing leaves your machine — if Ollama isn't running, this just politely says so instead of doing anything scary.")
-        if st.button("Explain with local LLM"):
-            with st.spinner("Asking your local model..."):
-                explanation, error = generate_ollama_explanation(summary_text)
-            if explanation:
-                st.write(explanation)
-            else:
-                st.warning(error)
+        # The Ollama button only makes sense where a local Ollama is reachable. On a hosted
+        # deployment it never will be, so set ENABLE_OLLAMA=false in the cloud secrets to hide it.
+        ollama_enabled = str(get_setting("ENABLE_OLLAMA", "true")).strip().lower() in ("1", "true", "yes")
+        if ollama_enabled:
+            st.header("9. AI explanation (optional)")
+            st.caption("Ask a locally-running Ollama model to rewrite the summary above in even friendlier language. Nothing leaves your machine — if Ollama isn't running, this just politely says so instead of doing anything scary.")
+            if st.button("Explain with local LLM"):
+                with st.spinner("Asking your local model..."):
+                    explanation, error = generate_ollama_explanation(summary_text)
+                if explanation:
+                    st.write(explanation)
+                else:
+                    st.warning(error)
 
         st.header("10. Export report")
         st.caption("Get a full diagnostic report, lab-report style, with the DataContract Lab letterhead on every page — or a lighter plain Markdown version.")
