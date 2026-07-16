@@ -26,6 +26,7 @@ DataContract Lab is a data quality and schema-drift monitoring tool for analysts
 - [Testing](#testing)
 - [Deployment](#deployment)
 - [Known Limitations](#known-limitations)
+- [Future Improvements](#future-improvements)
 
 ## Screenshots
 
@@ -78,7 +79,7 @@ Datasets change silently all the time — a column gets renamed by an upstream t
 | --- | --- |
 | App / UI | Streamlit |
 | Data processing | Pandas, NumPy |
-| Statistics | scipy (Kolmogorov–Smirnov test) |
+| Statistics | scipy (chi-square test for categorical drift, Kolmogorov–Smirnov test for numeric drift) |
 | Visualization | Plotly |
 | Database | MySQL, via SQLAlchemy + PyMySQL |
 | PDF generation | ReportLab |
@@ -200,4 +201,15 @@ ENABLE_OLLAMA = "false"
 
 - **Ollama explanation is local-only by nature** — it calls `http://localhost:11434` on whichever machine is running the app, so it only works when you run the app yourself locally; on the hosted deployment it is turned off via `ENABLE_OLLAMA=false`. Making it work for a remote visitor would require hosting an LLM (a paid API or a dedicated GPU server), which is out of scope for a free tool — so locally it also fails gracefully with a clear message when Ollama isn't reachable.
 - **Free-tier cold starts** — the hosted app sleeps after a period of inactivity (Streamlit Community Cloud) and takes a few seconds to wake on the first visit; the TiDB Serverless free tier likewise has generous but finite storage/request quotas.
+
+## Future Improvements
+
+Realistic next steps, roughly in order of value:
+
+- **Configurable thresholds in the UI** — the significance level (`alpha = 0.05`) and the missing-value drift threshold (`10` percentage points) are currently constants in `drift_engine.py`; exposing them as sidebar controls would let analysts tune sensitivity per dataset.
+- **PSI (Population Stability Index)** alongside the chi-square / KS tests — PSI is a standard drift metric in analytics and ML monitoring, and reporting it would make the output more familiar to data teams.
+- **Compare against a *stored* baseline** — today the scan history is a log of past *runs*; a natural extension is saving a full baseline dataset and re-running drift against it later, so drift is tracked over time for the same source.
+- **Per-column severity view** — a single sortable table scoring each column's drift severity across all four checks, instead of the current per-section breakdown.
+- **Data-contract export** — emit a machine-readable contract (JSON/YAML) describing the expected schema and distributions, so the "new" file can be validated against it automatically in a pipeline.
+- **Scheduled / API-driven monitoring** — accept datasets via an endpoint and alert on drift, moving from an interactive tool toward an automated data-quality gate.
 
