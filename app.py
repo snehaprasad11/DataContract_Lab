@@ -583,7 +583,16 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
             save_scan(engine, baseline_file.name, new_file.name, quality_score, summary_text)
             st.session_state.scan_saved = True
 
-        st.header("8. AI explanation (optional)")
+        st.header("8. Cleaning suggestions")
+        st.caption("Concrete next steps for each issue found — what to double-check, who to ask, and what might break downstream if you don't. These also appear in the exported PDF report.")
+        suggestions = build_suggestions(schema_diff, missing_drift, categorical_drift, numeric_drift)
+        if suggestions:
+            for i, suggestion in enumerate(suggestions, start=1):
+                st.warning(f"**{i}.** {suggestion}")
+        else:
+            st.success("No action needed — this dataset looks consistent with the baseline.")
+
+        st.header("9. AI explanation (optional)")
         st.caption("Ask a locally-running Ollama model to rewrite the summary above in even friendlier language. Nothing leaves your machine — if Ollama isn't running, this just politely says so instead of doing anything scary.")
         if st.button("Explain with local LLM"):
             with st.spinner("Asking your local model..."):
@@ -593,7 +602,7 @@ if "baseline_df" in st.session_state and "new_df" in st.session_state:
             else:
                 st.warning(error)
 
-        st.header("9. Export report")
+        st.header("10. Export report")
         st.caption("Get a full diagnostic report, lab-report style, with the DataContract Lab letterhead on every page — or a lighter plain Markdown version.")
         report_markdown = build_markdown_report(schema_diff, missing_drift, categorical_drift, numeric_drift, quality_score, summary_text)
         pdf_buffer = build_pdf_report(
