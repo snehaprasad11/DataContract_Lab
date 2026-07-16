@@ -5,9 +5,10 @@ DataContract Lab is a data quality and schema-drift monitoring tool for analysts
 **In plain words:** imagine yesterday's export had columns `customer_id, age, city, purchase_amount`, and today's suddenly has `customer_id, age, location, purchase_amount, discount_code` — with `location` holding the exact same values `city` used to. DataContract Lab catches that `city` was silently renamed to `location`, flags the new `discount_code` column, and checks whether `purchase_amount`'s missingness or overall shape changed too — then rolls all of it into a single 0-100 quality score and a plain-English summary.
 
 ![Streamlit](https://img.shields.io/badge/Streamlit-App-ff4b4b)
-![Python](https://img.shields.io/badge/Python-3.14-blue)
+![Python](https://img.shields.io/badge/Python-3.12-blue)
 ![MySQL](https://img.shields.io/badge/MySQL-Persistence-4479a1)
 ![Ollama](https://img.shields.io/badge/Ollama-Optional%20Local%20LLM-222)
+[![CI](https://github.com/snehaprasad11/DataContract_Lab/actions/workflows/ci.yml/badge.svg)](https://github.com/snehaprasad11/DataContract_Lab/actions/workflows/ci.yml)
 
 ## Contents
 
@@ -20,6 +21,7 @@ DataContract Lab is a data quality and schema-drift monitoring tool for analysts
 - [Local Setup](#local-setup)
 - [User Manual](#user-manual)
 - [Sample Data](#sample-data)
+- [Testing](#testing)
 - [Known Limitations](#known-limitations)
 - [Resume Bullets](#resume-bullets)
 - [Status](#status)
@@ -159,6 +161,18 @@ This app runs entirely on your machine — there's no hosted version, so you'll 
 ## Sample Data
 
 `sample_data/` contains a baseline/new pair in all three supported formats, deliberately constructed with drift: `city` renamed to `location`, a new `discount_code` column, several `purchase_amount` values now missing, and the remaining amounts shifted roughly 4-5x higher — enough to trip every detector in the app for testing.
+
+## Testing
+
+The drift-detection logic lives in `drift_engine.py`, deliberately separated from the Streamlit UI so it can be unit-tested without spinning up the app or a database. `tests/test_drift_engine.py` covers all of it with `pytest`:
+
+```bash
+pytest -v
+```
+
+The suite (24 cases) exercises schema comparison (adds/removes, dtype changes, the rename heuristic), missing-value drift thresholds, categorical drift, numeric distribution drift, quality-score arithmetic (including the clamp-to-zero and rename-not-penalized edge cases), the summary text, and the cleaning suggestions. One test — `test_detect_categorical_drift_catches_shift_even_when_top_value_unchanged` — pins the exact behavior that motivated moving from a mode-only check to a chi-square test: a 60/40 → 90/10 shift where the most common value never changes but the distribution clearly did.
+
+Every push and pull request runs the same suite in GitHub Actions (see the CI badge above and [`.github/workflows/ci.yml`](.github/workflows/ci.yml)), on a clean Python 3.12 environment installed from `requirements.txt`.
 
 ## Known Limitations
 
