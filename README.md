@@ -23,8 +23,6 @@ DataContract Lab is a data quality and schema-drift monitoring tool for analysts
 - [Sample Data](#sample-data)
 - [Testing](#testing)
 - [Known Limitations](#known-limitations)
-- [Resume Bullets](#resume-bullets)
-- [Status](#status)
 
 ## Screenshots
 
